@@ -1,0 +1,401 @@
+# REVISÃO E MELHORIAS DA ARQUITETURA
+
+Após analisar a arquitetura proposta, identifiquei alguns pontos que devem ser aprimorados para tornar o sistema mais escalável, modular e preparado para crescimento futuro.
+
+Considere estas observações como requisitos obrigatórios para a próxima versão da arquitetura.
+
+---
+
+# 1. REMOVER PESO GLOBAL DOS TÓPICOS
+
+Atualmente existe a ideia de um peso global para cada tópico.
+
+Isso não é ideal porque cada vestibular possui pesos diferentes para os mesmos conteúdos.
+
+Exemplo:
+
+* Trigonometria possui peso alto na FUVEST.
+* Pode ter peso médio na UNICAMP.
+* Pode ter peso diferente no ENEM.
+
+Substituir:
+
+```sql
+topicos
+- peso_global
+```
+
+Por:
+
+```sql
+topicos
+- id
+- materia_id
+- nome
+- dificuldade
+```
+
+E criar:
+
+```sql
+topico_vestibular
+
+- id
+- topico_id
+- vestibular_id
+- peso
+```
+
+Assim cada vestibular possui sua própria matriz de importância.
+
+---
+
+# 2. CRIAR CAMADA DE REPOSITORIES
+
+A arquitetura MVC atual está boa, mas não quero SQL diretamente nos Models.
+
+Adicionar:
+
+```text
+Repositories/
+```
+
+Nova estrutura:
+
+```text
+Controllers/
+Services/
+Repositories/
+Models/
+Middlewares/
+Validators/
+Helpers/
+```
+
+Responsabilidades:
+
+Repositories:
+
+* consultas SQL
+* persistência
+* filtros
+* paginação
+
+Models:
+
+* entidades
+* regras simples
+* relacionamentos
+
+Services:
+
+* regras de negócio
+
+---
+
+# 3. SEPARAR O MOTOR DE RECOMENDAÇÃO
+
+O SchedulerService não deve decidir prioridades.
+
+Criar:
+
+```text
+RecommendationService
+```
+
+Responsável por calcular:
+
+prioridade =
+
+peso_vestibular +
+dificuldade +
+quantidade_erros +
+tempo_sem_revisao +
+nivel_de_dominio
+
+O SchedulerService deve apenas organizar horários e distribuir conteúdos.
+
+---
+
+# 4. HISTÓRICO DE CRONOGRAMAS
+
+O sistema não deve sobrescrever cronogramas antigos.
+
+Criar versionamento:
+
+```sql
+cronogramas
+
+id
+usuario_id
+versao
+status
+created_at
+updated_at
+```
+
+Status:
+
+* ativo
+* arquivado
+* concluido
+
+Objetivo:
+
+Permitir comparar diferentes cronogramas gerados ao longo do tempo.
+
+---
+
+# 5. CRIAR BANCO DE QUESTÕES
+
+Adicionar módulo completo de questões.
+
+Tabela:
+
+```sql
+questoes
+
+id
+topico_id
+vestibular
+ano
+nivel
+enunciado
+gabarito
+explicacao
+```
+
+Tabela:
+
+```sql
+questao_resposta_usuario
+
+id
+usuario_id
+questao_id
+acertou
+tempo_resposta
+data_resposta
+```
+
+Isso permitirá:
+
+* cálculo de desempenho real
+* análise de erros
+* priorização inteligente
+
+---
+
+# 6. IMPLEMENTAR SISTEMA DE DOMÍNIO DE CONTEÚDOS
+
+Criar tabela:
+
+```sql
+dominio_topico
+
+id
+usuario_id
+topico_id
+nivel
+```
+
+Escala:
+
+0 = nunca estudou
+
+1 = básico
+
+2 = intermediário
+
+3 = avançado
+
+4 = dominado
+
+O algoritmo deve considerar esse nível ao gerar o cronograma.
+
+---
+
+# 7. MELHORAR O SISTEMA DE REVISÃO ESPAÇADA
+
+Não utilizar apenas:
+
+* 7 dias
+* 30 dias
+* 90 dias
+
+Utilizar:
+
+* 1 dia
+* 7 dias
+* 21 dias
+* 60 dias
+* 120 dias
+
+Além disso:
+
+Se o usuário errar uma revisão:
+
+* reduzir intervalo
+* aumentar prioridade
+* reagendar automaticamente
+
+---
+
+# 8. SCORE DE APROVAÇÃO
+
+Criar um indicador global chamado:
+
+```text
+Índice de Aprovação
+```
+
+Variáveis:
+
+* simulados
+* redações
+* cumprimento do cronograma
+* revisões concluídas
+* horas estudadas
+
+Resultado:
+
+```text
+0 a 100
+```
+
+Exemplo:
+
+```text
+78/100
+```
+
+Mostrar no dashboard.
+
+---
+
+# 9. EXPANDIR O MÓDULO DE REDAÇÃO
+
+Além da nota total.
+
+Registrar:
+
+* argumentação
+* repertório sociocultural
+* coesão
+* gramática
+* proposta de intervenção
+
+Criar gráficos de evolução por competência.
+
+---
+
+# 10. CRIAR SISTEMA DE LOGS
+
+Adicionar:
+
+```sql
+activity_logs
+
+id
+usuario_id
+acao
+descricao
+created_at
+```
+
+Registrar:
+
+* login
+* logout
+* geração de cronograma
+* conclusão de tópicos
+* realização de simulados
+* envio de redações
+* alteração de disponibilidade
+
+---
+
+# 11. MELHORAR ESTRUTURA DE PASTAS
+
+Estrutura desejada:
+
+```text
+app/
+
+Controllers/
+Models/
+Repositories/
+Services/
+Middlewares/
+Validators/
+Helpers/
+
+config/
+
+database/
+migrations/
+seeders/
+
+public/
+
+assets/
+css/
+js/
+img/
+
+storage/
+logs/
+uploads/
+
+tests/
+unit/
+integration/
+```
+
+---
+
+# 12. DIFERENCIAL PRINCIPAL DO SISTEMA
+
+O sistema deve possuir um recurso chamado:
+
+```text
+Replanejamento Automático
+```
+
+Sempre que ocorrer qualquer uma das situações abaixo:
+
+* queda de desempenho
+* muitos erros em determinado assunto
+* alteração das horas disponíveis
+* inclusão de novos vestibulares
+* mudança da data da prova
+* atraso no cronograma
+
+O sistema deve recalcular automaticamente:
+
+* prioridades
+* revisões
+* cronograma diário
+* cronograma semanal
+* cronograma mensal
+
+Sem perder o histórico anterior.
+
+---
+
+# NOVA SOLICITAÇÃO
+
+Antes de iniciar a implementação da ETAPA 2, atualize completamente:
+
+1. Arquitetura do sistema
+2. DER
+3. Banco de dados
+4. Estrutura de pastas
+5. Fluxos do motor de cronograma
+6. Fluxos do motor de recomendação
+7. Fluxos do sistema de revisão
+8. Dashboard
+9. APIs
+10. Estratégia de escalabilidade
+
+Após atualizar tudo, apresente a nova arquitetura completa e somente depois avance para a implementação.
